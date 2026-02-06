@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clash Auto Switch - 节点自动切换</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Clash Auto Switch</h1>
+            <p class="subtitle">VPN 节点自动切换服务</p>
+        </header>
+
+        <!-- 实时状态监控 -->
+        <section class="card">
+            <h2>实时状态</h2>
+            <div class="status-grid">
+                <div class="status-item">
+                    <span class="label">当前节点:</span>
+                    <span class="value" id="currentNode">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">当前延迟:</span>
+                    <span class="value" id="currentDelay">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">运行状态:</span>
+                    <span class="value" id="runningStatus">
+                        <span class="badge badge-warning">未启动</span>
+                    </span>
+                </div>
+                <div class="status-item">
+                    <span class="label">切换次数:</span>
+                    <span class="value" id="switchCount">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">上次检测:</span>
+                    <span class="value" id="lastCheck">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">可用节点:</span>
+                    <span class="value" id="availableCount">0</span>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="btn btn-primary" id="btnStart" onclick="startChecker()">启动检测</button>
+                <button class="btn btn-secondary" id="btnStop" onclick="stopChecker()">停止检测</button>
+                <button class="btn btn-info" onclick="checkNow()">立即检测</button>
+            </div>
+        </section>
+
+        <!-- 参数设置 -->
+        <section class="card">
+            <h2>参数设置</h2>
+            <div class="form-group">
+                <label for="delayThreshold">延迟阈值 (毫秒):</label>
+                <input type="number" id="delayThreshold" class="form-control" value="200">
+            </div>
+            <div class="form-group">
+                <label for="checkInterval">检测间隔 (秒):</label>
+                <input type="number" id="checkInterval" class="form-control" value="30">
+            </div>
+            <div class="form-group">
+                <label for="lockedRegion">锁定区域:</label>
+                <input type="text" id="lockedRegion" class="form-control" placeholder="例如: 香港、日本、新加坡">
+            </div>
+            <div class="form-group">
+                <label for="testUrl">测试URL:</label>
+                <input type="text" id="testUrl" class="form-control" value="http://www.gstatic.com/generate_204">
+            </div>
+            <button class="btn btn-success" onclick="updateConfig()">保存配置</button>
+        </section>
+
+        <!-- 节点列表 -->
+        <section class="card">
+            <h2>节点列表</h2>
+            <div class="filter-bar">
+                <select id="regionFilter" class="form-control" onchange="loadNodes()">
+                    <option value="">所有区域</option>
+                </select>
+                <button class="btn btn-sm btn-secondary" onclick="loadNodes()">刷新</button>
+            </div>
+            <div class="node-list" id="nodeList">
+                <p class="text-center">加载中...</p>
+            </div>
+        </section>
+
+        <!-- 黑名单管理 -->
+        <section class="card">
+            <h2>黑名单管理</h2>
+            <div class="blacklist-list" id="blacklistList">
+                <p class="text-center">加载中...</p>
+            </div>
+        </section>
+
+        <!-- 延迟历史 -->
+        <section class="card">
+            <h2>延迟历史</h2>
+            <div class="history-list" id="historyList">
+                <p class="text-center">暂无数据</p>
+            </div>
+        </section>
+    </div>
+
+    <footer>
+        <p>Clash Auto Switch - Python + Flask</p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
