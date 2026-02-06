@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  clash-auto-switch:
+    build: .
+    container_name: clash-auto-switch
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      # Clash API 配置
+      - CLASH_API_URL=${CLASH_API_URL:-http://host.docker.internal:9097}
+      - CLASH_SECRET=${CLASH_SECRET:-}
+      - PROXY_GROUP=${PROXY_GROUP:-PROXY}
+
+      # 服务配置
+      - FLASK_PORT=5000
+      - FLASK_HOST=0.0.0.0
+      - FLASK_DEBUG=False
+
+      # 延迟检测配置
+      - DELAY_THRESHOLD=${DELAY_THRESHOLD:-200}
+      - CHECK_INTERVAL=${CHECK_INTERVAL:-30}
+      - LOCKED_REGION=${LOCKED_REGION:-}
+      - TEST_TIMEOUT=${TEST_TIMEOUT:-5000}
+      - TEST_URL=${TEST_URL:-http://www.gstatic.com/generate_204}
+    networks:
+      - clash-network
+    volumes:
+      # 可选：挂载日志目录
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/state"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  clash-network:
+    driver: bridge
