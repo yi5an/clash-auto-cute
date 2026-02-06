@@ -26,7 +26,7 @@ Clash VPN 节点自动切换服务 - 根据延迟自动切换节点，支持区�
 ```bash
 # 1. 克隆项目
 git clone git@github.com:yi5an/clash-auto-cute.git
-cd clash-auto-switch
+cd clash-auto-cute
 
 # 2. 配置环境变量
 cp .env.example .env
@@ -77,8 +77,8 @@ docker compose down
 
 ```bash
 # Clash API 配置
-# Docker 环境下使用 host.docker.internal 访问宿主机的 Clash
-CLASH_API_URL=http://host.docker.internal:9097
+# 使用 host 网络模式（默认，仅 Linux）
+CLASH_API_URL=http://127.0.0.1:9097
 CLASH_SECRET=your-secret
 PROXY_GROUP=PROXY
 
@@ -91,6 +91,10 @@ DELAY_THRESHOLD=200
 CHECK_INTERVAL=30
 LOCKED_REGION=
 ```
+
+**⚠️ 重要提示**:
+- 默认使用 **host 网络模式**（仅 Linux 支持）
+- Mac/Windows 用户需要修改 `docker-compose.yml`，详见 [DOCKER.md](DOCKER.md)
 
 访问 Web 界面：`http://localhost:5000`
 
@@ -127,6 +131,7 @@ python app.py
 #### 访问 Web 界面
 
 启动成功后，在浏览器中访问：
+
 ```
 http://localhost:5000
 ```
@@ -140,6 +145,7 @@ http://localhost:5000
 **Clash for Windows**: 默认开启，地址为 `http://127.0.0.1:9090`
 
 **Clash Premium/Meta**: 在配置文件中添加：
+
 ```yaml
 external-controller: 127.0.0.1:9090
 secret: your-secret  # 可选
@@ -148,6 +154,7 @@ secret: your-secret  # 可选
 ### Web 界面配置
 
 在 Web 界面中可以配置：
+
 - **延迟阈值**: 超过此值触发切换（毫秒）
 - **检测间隔**: 每隔多少秒检测一次延迟
 - **锁定区域**: 只在指定区域内切换节点
@@ -207,15 +214,19 @@ clash-auto-switch/
 
 ### Docker 环境注意事项
 
-1. **网络访问**
-   - Docker 容器访问宿主机的 Clash API 时，需要使用 `host.docker.internal`（Mac/Windows）或宿主机 IP（Linux）
-   - 确保 Clash API 允许来自 Docker 容器的访问
+1. **网络模式**
+
+   - 默认使用 **host 网络模式**（仅 Linux）
+   - 容器直接使用宿主机网络，可访问 `127.0.0.1:9097`
+   - Mac/Windows 用户需要修改配置使用 `host.docker.internal`
 
 2. **数据持久化**
+
    - 当前配置为纯内存存储，容器重启后配置会丢失
    - 可通过挂载卷实现配置持久化（需修改代码）
 
 3. **日志管理**
+
    - 容器日志使用 `docker compose logs` 查看
    - 可在 docker-compose.yml 中配置日志卷挂载
 
@@ -224,12 +235,14 @@ clash-auto-switch/
 ### Docker 环境
 
 **容器无法连接到 Clash API**
+
 - 检查 `.env` 中的 `CLASH_API_URL` 是否正确
+- Linux（host 模式）: 使用 `http://127.0.0.1:9097`
 - Mac/Windows: 使用 `http://host.docker.internal:9097`
-- Linux: 使用宿主机的实际 IP 地址，如 `http://192.168.1.100:9097`
-- 确保 Clash API 允许来自 Docker 网络的访问
+- 确保 Clash 正在运行且 API 已启用
 
 **容器启动失败**
+
 - 查看日志: `docker compose logs`
 - 检查端口 5000 是否被占用: `docker compose ps`
 - 重新构建镜像: `./docker-deploy.sh build --no-cache`
@@ -237,6 +250,7 @@ clash-auto-switch/
 ### 本地环境
 
 **无法连接到 Clash API**
+
 - 检查 Clash 是否正在运行
 - 检查 API 地址和密钥是否正确
 - 运行 `python test.py` 进行诊断

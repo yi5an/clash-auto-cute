@@ -50,10 +50,8 @@ docker compose logs -f
 
 ```bash
 # Clash API 配置
-# Mac/Windows Docker 用户使用:
-CLASH_API_URL=http://host.docker.internal:9097
-# Linux Docker 用户使用宿主机 IP:
-# CLASH_API_URL=http://192.168.1.100:9097
+# 使用 host 网络模式（仅 Linux）
+CLASH_API_URL=http://127.0.0.1:9097
 
 CLASH_SECRET=your-secret-key
 PROXY_GROUP=PROXY
@@ -71,19 +69,49 @@ TEST_TIMEOUT=5000            # 测试超时（毫秒）
 TEST_URL=http://www.gstatic.com/generate_204
 ```
 
-### 网络配置详解
+### 网络模式说明
 
-#### Mac/Windows Docker Desktop
+#### Host 网络模式（推荐，仅 Linux）
 
-使用 `host.docker.internal` 访问宿主机：
+项目默认使用 **host 网络模式**，容器直接使用宿主机网络栈：
+
+```yaml
+network_mode: host
+```
+
+**优点**:
+- ✅ 直接访问宿主机 Clash API (`127.0.0.1:9097`)
+- ✅ 无需额外网络配置
+- ✅ 性能更好，无网络转发开销
+
+**限制**:
+- ⚠️ 仅支持 Linux 系统
+- ⚠️ Mac/Windows Docker Desktop 不支持
+
+#### Mac/Windows 用户
+
+如果使用 Mac/Windows，需要修改 `docker-compose.yml`：
+
+```yaml
+# 移除 network_mode: host
+# 添加端口映射
+ports:
+  - "5000:5000"
+
+# 修改环境变量
+environment:
+  - CLASH_API_URL=http://host.docker.internal:9097
+```
+
+并使用 `host.docker.internal` 访问宿主机：
 
 ```bash
 CLASH_API_URL=http://host.docker.internal:9097
 ```
 
-#### Linux Docker
+#### Linux Docker (非 host 模式)
 
-需要使用宿主机的实际 IP 地址：
+如果不想使用 host 模式，可以使用宿主机 IP：
 
 ```bash
 # 获取宿主机 IP
