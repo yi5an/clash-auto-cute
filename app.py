@@ -14,6 +14,7 @@ from models import Config, RuntimeState
 from clash_api import ClashAPI
 from node_manager import NodeManager
 from delay_checker import DelayChecker
+from storage import storage
 
 # 配置日志
 logging.basicConfig(
@@ -47,6 +48,16 @@ def initialize():
     global clash_api, node_manager, delay_checker
 
     try:
+        # 从持久化存储加载配置
+        storage.load_state_to_config(config)
+
+        # 从持久化存储加载黑名单
+        saved_blacklist = storage.load_blacklist()
+        state.blacklist = saved_blacklist
+
+        logger.info(f"从存储加载配置: 延迟阈值={config.delay_threshold}ms, 区域={config.locked_region or '未设置'}")
+        logger.info(f"从存储加载黑名单: {len(state.blacklist)} 个节点")
+
         # 创建 Clash API 客户端
         clash_api = ClashAPI(config)
 
@@ -118,6 +129,12 @@ def update_config_api():
         global config
         config = update_config(config, **data)
 
+        # 保存配置到文件
+        if storage.save_config(config):
+            logger.info("配置已持久化保存")
+        else:
+            logger.warning("配置保存失败，但已应用")
+
         # 如果延迟检测器正在运行，重启它以应用新配置
         if delay_checker and delay_checker.is_running():
             delay_checker.stop()
@@ -138,8 +155,21 @@ def get_nodes():
         if not node_manager:
             return jsonify({'success': False, 'error': '服务未初始化'}), 500
 
+        # 获取查询参数
+        region = request.args.get('region', '')
+
+        # 临时保存当前配置
+        original_region = config.locked_region
+
+        # 如果提供了 region 参数，临时修改配置
+        if region:
+            config.locked_region = region
+
         all_nodes = node_manager.get_available_nodes()
         filtered_nodes = node_manager.filter_nodes()
+
+        # 恢复原始配置
+        config.locked_region = original_region
 
         return jsonify({
             'success': True,
@@ -226,9 +256,11 @@ def add_blacklist():
             return jsonify({'success': False, 'error': '节点名称不能为空'}), 400
 
         success = node_manager.add_blacklist(node_name)
-        notify_state_update()
 
         if success:
+            # 保存黑名单到文件
+            storage.save_blacklist(state.blacklist)
+            notify_state_update()
             return jsonify({'success': True, 'message': f'已添加到黑名单: {node_name}'})
         else:
             return jsonify({'success': False, 'error': '添加失败'}), 500
@@ -249,7 +281,18 @@ def remove_blacklist():
             return jsonify({'success': False, 'error': '节点名称不能为空'}), 400
 
         success = node_manager.remove_blacklist(node_name)
-        notify_state_update()
+
+        if success:
+            # 保存黑名单到文件
+            storage.save_blacklist(state.blacklist)
+            notify_state_update()
+            return jsonify({'success': True, 'message': f'已从黑名单移除: {node_name}'})
+        else:
+            return jsonify({'success': False, 'error': '移除失败'}), 500
+
+    except Exception as e:
+        logger.error(f"移除黑名单失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
         if success:
             return jsonify({'success': True, 'message': f'已从黑名单移除: {node_name}'})
