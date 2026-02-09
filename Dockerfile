@@ -25,6 +25,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制项目文件
 COPY . .
 
+# 创建数据目录
+RUN mkdir -p /app/data && \
+    chown -R appuser:appuser /app/data
+
 # 创建非 root 用户
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app

@@ -25,6 +25,8 @@ services:
       - TEST_TIMEOUT=${TEST_TIMEOUT:-5000}
       - TEST_URL=${TEST_URL:-http://www.gstatic.com/generate_204}
     volumes:
+      # 数据持久化目录
+      - ./data:/app/data
       # 可选：挂载日志目录
       - ./logs:/app/logs
     healthcheck:

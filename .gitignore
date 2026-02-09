@@ -20,6 +20,10 @@ ENV/
 
 # 日志
 *.log
+logs/
+
+# 数据持久化
+data/
 
 # macOS
 .DS_Store
