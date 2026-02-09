@@ -143,7 +143,8 @@ async function loadNodes() {
         const data = await response.json();
 
         if (data.success) {
-            displayNodes(data.all_nodes || data.filtered_nodes, data.current_node);
+            // 使用 filtered_nodes（后端已经根据 region 参数筛选）
+            displayNodes(data.filtered_nodes, data.current_node);
         }
     } catch (error) {
         console.error('加载节点列表失败:', error);
