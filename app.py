@@ -138,8 +138,21 @@ def get_nodes():
         if not node_manager:
             return jsonify({'success': False, 'error': '服务未初始化'}), 500
 
+        # 获取查询参数
+        region = request.args.get('region', '')
+
+        # 临时保存当前配置
+        original_region = config.locked_region
+
+        # 如果提供了 region 参数，临时修改配置
+        if region:
+            config.locked_region = region
+
         all_nodes = node_manager.get_available_nodes()
         filtered_nodes = node_manager.filter_nodes()
+
+        # 恢复原始配置
+        config.locked_region = original_region
 
         return jsonify({
             'success': True,

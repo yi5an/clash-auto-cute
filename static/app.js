@@ -47,10 +47,27 @@ function updateStateDisplay(state) {
 
     // 运行状态
     const statusBadge = document.getElementById('runningStatus');
+    const btnStart = document.getElementById('btnStart');
+    const btnStop = document.getElementById('btnStop');
+
     if (state.is_running) {
         statusBadge.innerHTML = '<span class="badge badge-success">运行中</span>';
+        // 禁用启动按钮，启用停止按钮
+        btnStart.disabled = true;
+        btnStop.disabled = false;
+        btnStart.style.opacity = '0.5';
+        btnStart.style.cursor = 'not-allowed';
+        btnStop.style.opacity = '1';
+        btnStop.style.cursor = 'pointer';
     } else {
         statusBadge.innerHTML = '<span class="badge badge-warning">未启动</span>';
+        // 启用启动按钮，禁用停止按钮
+        btnStart.disabled = false;
+        btnStop.disabled = true;
+        btnStart.style.opacity = '1';
+        btnStart.style.cursor = 'pointer';
+        btnStop.style.opacity = '0.5';
+        btnStop.style.cursor = 'not-allowed';
     }
 
     document.getElementById('switchCount').textContent = state.switch_count;
@@ -117,11 +134,16 @@ async function updateConfig() {
 // 加载节点列表
 async function loadNodes() {
     try {
-        const response = await fetch('/api/nodes');
+        const regionFilter = document.getElementById('regionFilter').value;
+        const url = regionFilter
+            ? `/api/nodes?region=${encodeURIComponent(regionFilter)}`
+            : '/api/nodes';
+
+        const response = await fetch(url);
         const data = await response.json();
 
         if (data.success) {
-            displayNodes(data.all_nodes, data.current_node);
+            displayNodes(data.all_nodes || data.filtered_nodes, data.current_node);
         }
     } catch (error) {
         console.error('加载节点列表失败:', error);
