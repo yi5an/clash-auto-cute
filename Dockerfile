@@ -22,16 +22,20 @@ COPY requirements.txt .
 # 安装 Python 依赖
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制项目文件
-COPY . .
-
-# 创建数据目录
-RUN mkdir -p /app/data && \
-    chown -R appuser:appuser /app/data
-
 # 创建非 root 用户
 RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app/data && \
     chown -R appuser:appuser /app
+
+# 复制项目文件（使用 --chown 确保正确的所有权）
+COPY --chown=appuser:appuser . .
+
+# 确保 data 目录权限正确（即使它已被 COPY 创建）
+RUN mkdir -p /app/data && \
+    chown -R appuser:appuser /app/data && \
+    chmod -R 755 /app/data
+
+# 切换到非 root 用户
 USER appuser
 
 # 暴露端口

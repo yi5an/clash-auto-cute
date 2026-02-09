@@ -274,7 +274,35 @@ healthcheck:
 
 ## 常见问题
 
-### 1. 容器无法连接到 Clash API
+### 1. 数据目录权限问题
+
+**问题**: 日志显示 "Permission denied: '/app/data/xxx.json'"
+
+**原因**: Docker volume 挂载时以 root 用户创建了 `./data` 目录
+
+**解决方案**:
+
+```bash
+# 删除旧的 data 目录
+sudo rm -rf data
+
+# 使用当前用户创建 data 目录
+mkdir -p data
+
+# 重启容器
+docker compose restart
+```
+
+**预防措施**:
+
+首次部署前，先创建 data 目录：
+
+```bash
+mkdir -p data
+docker compose up -d
+```
+
+### 2. 容器无法连接到 Clash API
 
 **问题**: 日志显示 "无法连接到 Clash API"
 
@@ -284,7 +312,7 @@ healthcheck:
 - Linux: 使用宿主机 IP 地址
 - 检查 Clash API 是否允许来自容器的连接
 
-### 2. 端口冲突
+### 3. 端口冲突
 
 **问题**: 启动失败，提示端口 5000 已被占用
 
