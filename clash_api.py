@@ -27,28 +27,36 @@ class ClashAPI:
         if self.secret:
             self.headers['Authorization'] = f'Bearer {self.secret}'
 
-    def _request(self, method: str, endpoint: str, **kwargs) -> requests.Response:
-        """发送 HTTP 请求"""
+    def _request(self, method: str, endpoint: str, max_retries: int = 3, **kwargs) -> requests.Response:
+        """发送 HTTP 请求，支持重试机制"""
         url = f"{self.base_url}/{endpoint}"
-        try:
-            response = requests.request(
-                method,
-                url,
-                headers=self.headers,
-                timeout=5,
-                **kwargs
-            )
-            response.raise_for_status()
-            return response
-        except requests.exceptions.ConnectionError:
-            logger.error(f"无法连接到 Clash API: {url}")
-            raise ClashAPIError(f"无法连接到 Clash API: {url}")
-        except requests.exceptions.Timeout:
-            logger.error(f"请求 Clash API 超时: {url}")
-            raise ClashAPIError(f"请求超时: {url}")
-        except requests.exceptions.HTTPError as e:
-            logger.error(f"Clash API 返回错误: {e.response.status_code}")
-            raise ClashAPIError(f"API 错误: {e.response.status_code}")
+
+        for attempt in range(max_retries):
+            try:
+                response = requests.request(
+                    method,
+                    url,
+                    headers=self.headers,
+                    timeout=(10, 30),  # (连接超时, 读取超时)
+                    **kwargs
+                )
+                response.raise_for_status()
+                return response
+            except requests.exceptions.ConnectionError as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"连接失败，重试 {attempt + 1}/{max_retries}: {url}")
+                    continue
+                logger.error(f"无法连接到 Clash API: {url}")
+                raise ClashAPIError(f"无法连接到 Clash API: {url}")
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    logger.warning(f"请求超时，重试 {attempt + 1}/{max_retries}: {url}")
+                    continue
+                logger.error(f"请求 Clash API 超时: {url}")
+                raise ClashAPIError(f"请求超时: {url}")
+            except requests.exceptions.HTTPError as e:
+                logger.error(f"Clash API 返回错误: {e.response.status_code}")
+                raise ClashAPIError(f"API 错误: {e.response.status_code}")
 
     def get_proxies(self) -> Dict:
         """获取所有代理节点"""
