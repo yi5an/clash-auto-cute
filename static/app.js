@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadNodes();
     loadBlacklist();
     loadRegions();
+    updateStatusIndicator();
 });
 
 // 初始化 WebSocket
@@ -36,52 +37,90 @@ async function loadState() {
         updateStateDisplay(state);
     } catch (error) {
         console.error('加载状态失败:', error);
+        showNotification('加载状态失败', 'error');
     }
 }
 
 // 更新状态显示
 function updateStateDisplay(state) {
-    document.getElementById('currentNode').textContent = state.current_node || '-';
-    document.getElementById('currentDelay').textContent =
-        state.current_delay ? state.current_delay + ' ms' : '-';
+    // 当前节点
+    const currentNodeEl = document.getElementById('currentNode');
+    currentNodeEl.textContent = state.current_node || '--';
+    currentNodeEl.classList.remove('delay-good', 'delay-warning', 'delay-danger');
 
-    // 运行状态
-    const statusBadge = document.getElementById('runningStatus');
-    const btnStart = document.getElementById('btnStart');
-    const btnStop = document.getElementById('btnStop');
-
-    if (state.is_running) {
-        statusBadge.innerHTML = '<span class="badge badge-success">运行中</span>';
-        // 禁用启动按钮，启用停止按钮
-        btnStart.disabled = true;
-        btnStop.disabled = false;
-        btnStart.style.opacity = '0.5';
-        btnStart.style.cursor = 'not-allowed';
-        btnStop.style.opacity = '1';
-        btnStop.style.cursor = 'pointer';
+    // 当前延迟
+    const currentDelayEl = document.getElementById('currentDelay');
+    if (state.current_delay) {
+        currentDelayEl.textContent = state.current_delay;
+        currentDelayEl.className = 'status-value ' + getDelayClass(state.current_delay);
     } else {
-        statusBadge.innerHTML = '<span class="badge badge-warning">未启动</span>';
-        // 启用启动按钮，禁用停止按钮
-        btnStart.disabled = false;
-        btnStop.disabled = true;
-        btnStart.style.opacity = '1';
-        btnStart.style.cursor = 'pointer';
-        btnStop.style.opacity = '0.5';
-        btnStop.style.cursor = 'not-allowed';
+        currentDelayEl.textContent = '--';
+        currentDelayEl.className = 'status-value';
     }
 
+    // 系统状态
+    const systemStatusEl = document.getElementById('systemStatus');
+    const statusIndicatorEl = document.getElementById('statusIndicator');
+
+    if (state.is_running) {
+        systemStatusEl.innerHTML = '<span style="color: var(--accent-green);">运行中</span>';
+        statusIndicatorEl.className = 'status-indicator running';
+        document.getElementById('btnStart').disabled = true;
+        document.getElementById('btnStop').disabled = false;
+    } else {
+        systemStatusEl.innerHTML = '<span style="color: var(--accent-orange);">已停止</span>';
+        statusIndicatorEl.className = 'status-indicator stopped';
+        document.getElementById('btnStart').disabled = false;
+        document.getElementById('btnStop').disabled = true;
+    }
+
+    // 切换次数
     document.getElementById('switchCount').textContent = state.switch_count;
 
     // 上次检测时间
     if (state.last_check_time) {
         const lastCheck = new Date(state.last_check_time);
-        document.getElementById('lastCheck').textContent = lastCheck.toLocaleString();
+        document.getElementById('lastCheck').textContent = formatTime(lastCheck);
     }
 
+    // 可用节点数
     document.getElementById('availableCount').textContent = state.available_nodes.length;
 
     // 更新延迟历史
     updateHistoryList(state.delay_history);
+}
+
+// 获取延迟状态类
+function getDelayClass(delay) {
+    if (delay < 150) return 'delay-good';
+    if (delay < 300) return 'delay-warning';
+    return 'delay-danger';
+}
+
+// 格式化时间
+function formatTime(date) {
+    const now = new Date();
+    const diff = now - date;
+
+    if (diff < 60000) { // 1分钟内
+        return '刚刚';
+    } else if (diff < 3600000) { // 1小时内
+        return Math.floor(diff / 60000) + '分钟前';
+    } else if (diff < 86400000) { // 24小时内
+        return Math.floor(diff / 3600000) + '小时前';
+    } else {
+        return date.toLocaleString('zh-CN', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+}
+
+// 更新状态指示器
+function updateStatusIndicator() {
+    // 状态指示器会在 updateStateDisplay 中更新
 }
 
 // 加载配置
@@ -96,6 +135,7 @@ async function loadConfig() {
         document.getElementById('testUrl').value = config.test_url;
     } catch (error) {
         console.error('加载配置失败:', error);
+        showNotification('加载配置失败', 'error');
     }
 }
 
@@ -120,19 +160,22 @@ async function updateConfig() {
         const result = await response.json();
 
         if (result.success) {
-            alert('配置已保存');
+            showNotification('配置已保存', 'success');
             loadNodes();  // 重新加载节点列表
         } else {
-            alert('保存失败: ' + result.error);
+            showNotification('保存失败: ' + result.error, 'error');
         }
     } catch (error) {
         console.error('更新配置失败:', error);
-        alert('更新配置失败');
+        showNotification('更新配置失败', 'error');
     }
 }
 
 // 加载节点列表
 async function loadNodes() {
+    const nodeListEl = document.getElementById('nodeList');
+    nodeListEl.innerHTML = '<div class="loading"></div>';
+
     try {
         const regionFilter = document.getElementById('regionFilter').value;
         const url = regionFilter
@@ -143,13 +186,13 @@ async function loadNodes() {
         const data = await response.json();
 
         if (data.success) {
-            // 使用 filtered_nodes（后端已经根据 region 参数筛选）
             displayNodes(data.filtered_nodes, data.current_node);
+        } else {
+            nodeListEl.innerHTML = '<p class="text-center">加载失败</p>';
         }
     } catch (error) {
         console.error('加载节点列表失败:', error);
-        document.getElementById('nodeList').innerHTML =
-            '<p class="text-center">加载失败</p>';
+        nodeListEl.innerHTML = '<p class="text-center">加载失败</p>';
     }
 }
 
@@ -162,22 +205,29 @@ function displayNodes(nodes, currentNode) {
         return;
     }
 
-    container.innerHTML = nodes.map(node => `
-        <div class="node-item">
-            <div>
-                <div class="node-name">${node} ${node === currentNode ? '✓' : ''}</div>
-            </div>
+    container.innerHTML = nodes.map((node, index) => `
+        <div class="node-item" style="animation-delay: ${index * 0.05}s">
+            <div class="node-name ${node === currentNode ? 'current' : ''}">${node}</div>
             <div class="node-actions">
-                <button class="btn btn-sm btn-primary" onclick="switchNode('${node}')">切换</button>
-                <button class="btn btn-sm btn-info" onclick="testNode('${node}')">测速</button>
-                <button class="btn btn-sm btn-danger" onclick="addBlacklist('${node}')">拉黑</button>
+                <button class="btn btn-sm btn-primary" onclick="switchNode('${escapeHtml(node)}')">切换</button>
+                <button class="btn btn-sm btn-info" onclick="testNode('${escapeHtml(node)}')">测速</button>
+                <button class="btn btn-sm btn-danger" onclick="addBlacklist('${escapeHtml(node)}')">拉黑</button>
             </div>
         </div>
     `).join('');
 }
 
+// HTML 转义
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // 切换节点
 async function switchNode(nodeName) {
+    showNotification('正在切换节点...', 'info');
+
     try {
         const response = await fetch('/api/nodes/switch', {
             method: 'POST',
@@ -190,19 +240,22 @@ async function switchNode(nodeName) {
         const result = await response.json();
 
         if (result.success) {
-            alert(result.message);
+            showNotification(result.message, 'success');
             loadNodes();
+            loadState();  // 刷新状态
         } else {
-            alert('切换失败: ' + result.error);
+            showNotification('切换失败: ' + result.error, 'error');
         }
     } catch (error) {
         console.error('切换节点失败:', error);
-        alert('切换节点失败');
+        showNotification('切换节点失败', 'error');
     }
 }
 
 // 测试节点延迟
 async function testNode(nodeName) {
+    showNotification('正在测试延迟...', 'info');
+
     try {
         const response = await fetch('/api/nodes/test', {
             method: 'POST',
@@ -215,13 +268,13 @@ async function testNode(nodeName) {
         const result = await response.json();
 
         if (result.success) {
-            alert(`节点 ${nodeName} 延迟: ${result.delay} ms`);
+            showNotification(`节点 ${nodeName} 延迟: ${result.delay}ms`, 'success');
         } else {
-            alert('测试失败: ' + result.error);
+            showNotification('测试失败: ' + result.error, 'error');
         }
     } catch (error) {
         console.error('测试节点失败:', error);
-        alert('测试节点失败');
+        showNotification('测试节点失败', 'error');
     }
 }
 
@@ -248,11 +301,11 @@ function displayBlacklist(blacklist) {
         return;
     }
 
-    container.innerHTML = blacklist.map(node => `
-        <div class="blacklist-item">
+    container.innerHTML = blacklist.map((node, index) => `
+        <div class="blacklist-item" style="animation-delay: ${index * 0.05}s">
             <div class="node-name">${node}</div>
             <div class="node-actions">
-                <button class="btn btn-sm btn-success" onclick="removeBlacklist('${node}')">解除</button>
+                <button class="btn btn-sm btn-success" onclick="removeBlacklist('${escapeHtml(node)}')">解除</button>
             </div>
         </div>
     `).join('');
@@ -276,15 +329,15 @@ async function addBlacklist(nodeName) {
         const result = await response.json();
 
         if (result.success) {
-            alert(result.message);
+            showNotification(result.message, 'success');
             loadBlacklist();
             loadNodes();
         } else {
-            alert('添加失败: ' + result.error);
+            showNotification('添加失败: ' + result.error, 'error');
         }
     } catch (error) {
         console.error('添加黑名单失败:', error);
-        alert('添加黑名单失败');
+        showNotification('添加黑名单失败', 'error');
     }
 }
 
@@ -302,14 +355,15 @@ async function removeBlacklist(nodeName) {
         const result = await response.json();
 
         if (result.success) {
+            showNotification('已从黑名单移除', 'success');
             loadBlacklist();
             loadNodes();
         } else {
-            alert('移除失败: ' + result.error);
+            showNotification('移除失败: ' + result.error, 'error');
         }
     } catch (error) {
         console.error('移除黑名单失败:', error);
-        alert('移除黑名单失败');
+        showNotification('移除黑名单失败', 'error');
     }
 }
 
@@ -339,13 +393,13 @@ async function startChecker() {
         const result = await response.json();
 
         if (result.success) {
-            alert(result.message);
+            showNotification(result.message, 'success');
         } else {
-            alert('启动失败: ' + result.error);
+            showNotification('启动失败: ' + result.error, 'error');
         }
     } catch (error) {
         console.error('启动延迟检测失败:', error);
-        alert('启动延迟检测失败');
+        showNotification('启动延迟检测失败', 'error');
     }
 }
 
@@ -359,13 +413,13 @@ async function stopChecker() {
         const result = await response.json();
 
         if (result.success) {
-            alert(result.message);
+            showNotification(result.message, 'success');
         } else {
-            alert('停止失败: ' + result.error);
+            showNotification('停止失败: ' + result.error, 'error');
         }
     } catch (error) {
         console.error('停止延迟检测失败:', error);
-        alert('停止延迟检测失败');
+        showNotification('停止延迟检测失败', 'error');
     }
 }
 
@@ -379,13 +433,13 @@ async function checkNow() {
         const result = await response.json();
 
         if (result.success) {
-            alert(result.message);
+            showNotification(result.message, 'success');
         } else {
-            alert('检测失败: ' + result.error);
+            showNotification('检测失败: ' + result.error, 'error');
         }
     } catch (error) {
         console.error('执行检测失败:', error);
-        alert('执行检测失败');
+        showNotification('执行检测失败', 'error');
     }
 }
 
@@ -401,19 +455,89 @@ function updateHistoryList(history) {
     // 按时间倒序排列
     const sortedHistory = [...history].reverse();
 
-    container.innerHTML = sortedHistory.map(record => {
-        const delayClass = record.delay < 100 ? 'good' :
-                          record.delay < 200 ? 'warning' : 'danger';
-        const time = new Date(record.timestamp).toLocaleString();
+    container.innerHTML = sortedHistory.map((record, index) => {
+        const delayClass = getDelayClass(record.delay);
+        const time = new Date(record.timestamp);
+        const timeStr = formatTime(time);
 
         return `
-            <div class="history-item">
-                <div>
+            <div class="history-item" style="animation-delay: ${index * 0.05}s">
+                <div class="history-header">
                     <div class="node-name">${record.node_name}</div>
-                    <div class="node-delay ${delayClass}">${record.delay} ms</div>
+                    <div class="delay-badge ${delayClass}">
+                        <span class="status-dot ${record.delay < 300 ? 'online' : 'offline'}"></span>
+                        ${record.delay} ms
+                    </div>
                 </div>
-                <div style="color: #999; font-size: 0.9em;">${time}</div>
+                <div class="history-time">${timeStr}</div>
             </div>
         `;
     }).join('');
 }
+
+// 显示通知
+function showNotification(message, type = 'info') {
+    // 创建通知元素
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: var(--bg-card);
+        border: 1px solid var(--accent-cyan);
+        border-radius: 8px;
+        padding: 16px 24px;
+        color: var(--text-primary);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.9em;
+        box-shadow: 0 8px 32px rgba(0, 255, 245, 0.3);
+        z-index: 10000;
+        animation: slideInRight 0.3s ease-out;
+        max-width: 300px;
+    `;
+
+    // 根据类型设置颜色
+    if (type === 'success') {
+        notification.style.borderColor = 'var(--accent-green)';
+    } else if (type === 'error') {
+        notification.style.borderColor = 'var(--accent-pink)';
+    }
+
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    // 3秒后自动消失
+    setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.3s ease-out';
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 300);
+    }, 3000);
+}
+
+// 添加通知动画
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(100px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    @keyframes slideOutRight {
+        from {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        to {
+            opacity: 0;
+            transform: translateX(100px);
+        }
+    }
+`;
+document.head.appendChild(style);
