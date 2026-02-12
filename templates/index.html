@@ -3,85 +3,694 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clash Auto Switch - 节点自动切换</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <title>Clash Auto Switch</title>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0e27;
+            --bg-secondary: #1a1f3a;
+            --bg-card: rgba(26, 31, 58, 0.6);
+            --accent-cyan: #00fff5;
+            --accent-pink: #ff00ff;
+            --accent-green: #00ff9f;
+            --accent-orange: #ff6b35;
+            --accent-purple: #b936ff;
+            --text-primary: #e4e9f7;
+            --text-secondary: #94a3b8;
+            --border-color: rgba(0, 255, 245, 0.1);
+            --glow-cyan: 0 0 20px rgba(0, 255, 245, 0.3);
+            --glow-pink: 0 0 20px rgba(255, 0, 255, 0.2);
+        }
+
+        body {
+            font-family: 'Space Grotesk', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* 动态网格背景 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(rgba(0, 255, 245, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 245, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes gridMove {
+            0% { transform: perspective(500px) rotateX(60deg) translateY(0); }
+            100% { transform: perspective(500px) rotateX(60deg) translateY(50px); }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        /* 头部 */
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header h1 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.8em;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+            letter-spacing: -2px;
+        }
+
+        .header .subtitle {
+            font-size: 1.1em;
+            color: var(--text-secondary);
+            font-weight: 400;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        /* 状态指示器动画 */
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+            position: relative;
+        }
+
+        .status-indicator.running::before {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: -4px;
+            right: -4px;
+            bottom: -4px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-green);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .status-indicator.running {
+            background: var(--accent-green);
+            box-shadow: var(--glow-cyan);
+        }
+
+        .status-indicator.stopped {
+            background: var(--accent-orange);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        /* 卡片样式 */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg,
+                transparent,
+                var(--accent-cyan),
+                var(--accent-pink),
+                transparent
+            );
+            opacity: 0.5;
+        }
+
+        .card:hover {
+            border-color: rgba(0, 255, 245, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 255, 245, 0.1);
+        }
+
+        .card h2 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.3em;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h2::before {
+            content: '//';
+            opacity: 0.5;
+        }
+
+        /* 状态网格 */
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .status-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .status-item::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 3px;
+            height: 100%;
+            background: linear-gradient(180deg, var(--accent-cyan), var(--accent-purple));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .status-item:hover::after {
+            opacity: 1;
+        }
+
+        .status-item:hover {
+            transform: translateX(4px);
+            border-color: var(--accent-cyan);
+        }
+
+        .status-label {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 500;
+        }
+
+        .status-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.8em;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .status-value.delay-good {
+            color: var(--accent-green);
+        }
+
+        .status-value.delay-warning {
+            color: var(--accent-orange);
+        }
+
+        .status-value.delay-danger {
+            color: var(--accent-pink);
+        }
+
+        /* 按钮样式 */
+        .btn {
+            font-family: 'JetBrains Mono', monospace;
+            padding: 12px 24px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 245, 0.1), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            border-color: var(--accent-cyan);
+            box-shadow: var(--glow-cyan);
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            border: none;
+            color: var(--bg-primary);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));
+            border: none;
+            color: var(--bg-primary);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--accent-pink), var(--accent-orange));
+            border: none;
+            color: var(--bg-primary);
+        }
+
+        .btn-info {
+            background: var(--bg-secondary);
+            border-color: var(--accent-purple);
+            color: var(--accent-purple);
+        }
+
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 0.8em;
+        }
+
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        /* 表单样式 */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 500;
+        }
+
+        .form-control {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95em;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: var(--glow-cyan);
+        }
+
+        .form-control::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.5;
+        }
+
+        /* 节点列表 */
+        .filter-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .filter-bar .form-control {
+            flex: 1;
+        }
+
+        .node-list,
+        .blacklist-list,
+        .history-list {
+            max-height: 450px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .node-item,
+        .blacklist-item,
+        .history-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .node-item:hover,
+        .blacklist-item:hover {
+            border-color: var(--accent-cyan);
+            transform: translateX(4px);
+        }
+
+        .node-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .node-name.current {
+            color: var(--accent-cyan);
+        }
+
+        .node-name.current::after {
+            content: ' ●';
+            margin-left: 8px;
+            animation: blink 1.5s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .node-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .delay-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .delay-badge.good {
+            background: rgba(0, 255, 159, 0.15);
+            color: var(--accent-green);
+        }
+
+        .delay-badge.warning {
+            background: rgba(255, 107, 53, 0.15);
+            color: var(--accent-orange);
+        }
+
+        .delay-badge.danger {
+            background: rgba(255, 0, 255, 0.15);
+            color: var(--accent-pink);
+        }
+
+        /* 延迟历史 */
+        .history-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .history-time {
+            font-size: 0.8em;
+            color: var(--text-secondary);
+        }
+
+        /* 滚动条 */
+        .node-list::-webkit-scrollbar,
+        .blacklist-list::-webkit-scrollbar,
+        .history-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .node-list::-webkit-scrollbar-track,
+        .blacklist-list::-webkit-scrollbar-track,
+        .history-list::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        .node-list::-webkit-scrollbar-thumb,
+        .blacklist-list::-webkit-scrollbar-thumb,
+        .history-list::-webkit-scrollbar-thumb {
+            background: var(--accent-cyan);
+            border-radius: 3px;
+        }
+
+        .text-center {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 40px 20px;
+            font-style: italic;
+        }
+
+        /* 页脚 */
+        .footer {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-top: 40px;
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85em;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .actions {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+
+        /* 加载动画 */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-dot.online {
+            background: var(--accent-green);
+            box-shadow: 0 0 10px var(--accent-green);
+        }
+
+        .status-dot.offline {
+            background: var(--accent-pink);
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>Clash Auto Switch</h1>
-            <p class="subtitle">VPN 节点自动切换服务</p>
-        </header>
+        <div class="header">
+            <h1>CLASH AUTO SWITCH</h1>
+            <p class="subtitle">智能节点管理系统</p>
+        </div>
 
-        <!-- 实时状态监控 -->
+        <!-- 实时状态 -->
         <section class="card">
-            <h2>实时状态</h2>
+            <h2>
+                <span class="status-indicator" id="statusIndicator"></span>
+                系统状态
+            </h2>
             <div class="status-grid">
                 <div class="status-item">
-                    <span class="label">当前节点:</span>
-                    <span class="value" id="currentNode">-</span>
+                    <span class="status-label">当前节点</span>
+                    <span class="status-value" id="currentNode">--</span>
                 </div>
                 <div class="status-item">
-                    <span class="label">当前延迟:</span>
-                    <span class="value" id="currentDelay">-</span>
+                    <span class="status-label">节点延迟</span>
+                    <span class="status-value" id="currentDelay">--</span>
                 </div>
                 <div class="status-item">
-                    <span class="label">运行状态:</span>
-                    <span class="value" id="runningStatus">
-                        <span class="badge badge-warning">未启动</span>
+                    <span class="status-label">系统状态</span>
+                    <span class="status-value" id="systemStatus">
+                        <span style="font-size: 0.5em;">初始化中...</span>
                     </span>
                 </div>
                 <div class="status-item">
-                    <span class="label">切换次数:</span>
-                    <span class="value" id="switchCount">0</span>
+                    <span class="status-label">切换次数</span>
+                    <span class="status-value" id="switchCount">0</span>
                 </div>
                 <div class="status-item">
-                    <span class="label">上次检测:</span>
-                    <span class="value" id="lastCheck">-</span>
+                    <span class="status-label">上次检测</span>
+                    <span class="status-value" style="font-size: 0.9em;" id="lastCheck">--</span>
                 </div>
                 <div class="status-item">
-                    <span class="label">可用节点:</span>
-                    <span class="value" id="availableCount">0</span>
+                    <span class="status-label">可用节点</span>
+                    <span class="status-value" id="availableCount">0</span>
                 </div>
             </div>
             <div class="actions">
-                <button class="btn btn-primary" id="btnStart" onclick="startChecker()">启动检测</button>
-                <button class="btn btn-secondary" id="btnStop" onclick="stopChecker()">停止检测</button>
-                <button class="btn btn-info" onclick="checkNow()">立即检测</button>
+                <button class="btn btn-primary" id="btnStart" onclick="startChecker()">
+                    ▶ 启动检测
+                </button>
+                <button class="btn btn-danger" id="btnStop" onclick="stopChecker()">
+                    ■ 停止检测
+                </button>
+                <button class="btn btn-info" onclick="checkNow()">
+                    ↻ 立即检测
+                </button>
             </div>
         </section>
 
         <!-- 参数设置 -->
         <section class="card">
-            <h2>参数设置</h2>
-            <div class="form-group">
-                <label for="delayThreshold">延迟阈值 (毫秒):</label>
-                <input type="number" id="delayThreshold" class="form-control" value="200">
+            <h2>参数配置</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="delayThreshold">延迟阈值 (ms)</label>
+                    <input type="number" id="delayThreshold" class="form-control" value="200" min="50">
+                </div>
+                <div class="form-group">
+                    <label for="checkInterval">检测间隔 (秒)</label>
+                    <input type="number" id="checkInterval" class="form-control" value="30" min="10">
+                </div>
+                <div class="form-group">
+                    <label for="lockedRegion">锁定区域</label>
+                    <input type="text" id="lockedRegion" class="form-control" placeholder="香港、日本、新加坡...">
+                </div>
+                <div class="form-group">
+                    <label for="testUrl">测试 URL</label>
+                    <input type="text" id="testUrl" class="form-control" value="http://www.gstatic.com/generate_204">
+                </div>
             </div>
-            <div class="form-group">
-                <label for="checkInterval">检测间隔 (秒):</label>
-                <input type="number" id="checkInterval" class="form-control" value="30">
+            <div class="actions">
+                <button class="btn btn-success" onclick="updateConfig()">💾 保存配置</button>
             </div>
-            <div class="form-group">
-                <label for="lockedRegion">锁定区域:</label>
-                <input type="text" id="lockedRegion" class="form-control" placeholder="例如: 香港、日本、新加坡">
-            </div>
-            <div class="form-group">
-                <label for="testUrl">测试URL:</label>
-                <input type="text" id="testUrl" class="form-control" value="http://www.gstatic.com/generate_204">
-            </div>
-            <button class="btn btn-success" onclick="updateConfig()">保存配置</button>
         </section>
 
         <!-- 节点列表 -->
         <section class="card">
-            <h2>节点列表</h2>
+            <h2>节点管理</h2>
             <div class="filter-bar">
                 <select id="regionFilter" class="form-control" onchange="loadNodes()">
                     <option value="">所有区域</option>
                 </select>
-                <button class="btn btn-sm btn-secondary" onclick="loadNodes()">刷新</button>
+                <button class="btn btn-sm" onclick="loadNodes()">⟳ 刷新</button>
             </div>
             <div class="node-list" id="nodeList">
                 <p class="text-center">加载中...</p>
@@ -90,7 +699,7 @@
 
         <!-- 黑名单管理 -->
         <section class="card">
-            <h2>黑名单管理</h2>
+            <h2>黑名单</h2>
             <div class="blacklist-list" id="blacklistList">
                 <p class="text-center">加载中...</p>
             </div>
@@ -103,11 +712,11 @@
                 <p class="text-center">暂无数据</p>
             </div>
         </section>
-    </div>
 
-    <footer>
-        <p>Clash Auto Switch - Python + Flask</p>
-    </footer>
+        <footer class="footer">
+            <p>Clash Auto Switch // <span style="color: var(--accent-cyan);">v2.0</span></p>
+        </footer>
+    </div>
 
     <script src="/static/app.js"></script>
 </body>

@@ -17,11 +17,20 @@ from delay_checker import DelayChecker
 from storage import storage
 
 # 配置日志
+log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
+log_level_map = {
+    'DEBUG': logging.DEBUG,
+    'INFO': logging.INFO,
+    'WARNING': logging.WARNING,
+    'ERROR': logging.ERROR
+}
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=log_level_map.get(log_level, logging.INFO),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
+logger.info(f"日志级别: {log_level}")
 
 # 创建 Flask 应用
 app = Flask(__name__,

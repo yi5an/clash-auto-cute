@@ -17,6 +17,7 @@ services:
       - FLASK_PORT=5000
       - FLASK_HOST=0.0.0.0
       - FLASK_DEBUG=False
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}  # 日志级别: DEBUG, INFO, WARNING, ERROR
 
       # 延迟检测配置
       - DELAY_THRESHOLD=${DELAY_THRESHOLD:-200}
