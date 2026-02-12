@@ -30,6 +30,10 @@ services:
       - ./data:/app/data
       # 可选：挂载日志目录
       - ./logs:/app/logs
+      # 开发模式：挂载源代码目录（代码修改无需重新构建）
+      - .:/app
+      # 避免挂载覆盖容器内的用户目录
+      - /app/node_modules
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/state"]
       interval: 30s

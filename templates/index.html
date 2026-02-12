@@ -626,6 +626,14 @@
                     <span class="status-value" id="currentDelay">--</span>
                 </div>
                 <div class="status-item">
+                    <span class="status-label">静默期</span>
+                    <span class="status-value" id="silentPeriod">未启用</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">活跃连接</span>
+                    <span class="status-value" id="activeConnections">未检测</span>
+                </div>
+                <div class="status-item">
                     <span class="status-label">系统状态</span>
                     <span class="status-value" id="systemStatus">
                         <span style="font-size: 0.5em;">初始化中...</span>
@@ -680,6 +688,43 @@
             </div>
             <div class="actions">
                 <button class="btn btn-success" onclick="updateConfig()">💾 保存配置</button>
+            </div>
+        </section>
+
+        <!-- 智能切换设置 -->
+        <section class="card">
+            <h2>🤖 智能切换设置</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="silentPeriodMinutes">静默期时长 (分钟)</label>
+                    <input type="number" id="silentPeriodMinutes" class="form-control" value="3" min="1" max="30">
+                    <small style="color: var(--text-secondary);">切换后不检测的时长</small>
+                </div>
+                <div class="form-group">
+                    <label for="minDelayForSwitch">最小切换延迟 (ms)</label>
+                    <input type="number" id="minDelayForSwitch" class="form-control" value="100" min="50">
+                    <small style="color: var(--text-secondary);">低于此值不切换，避免抖动</small>
+                </div>
+                <div class="form-group">
+                    <label for="enableActiveDetection">启用活跃检测</label>
+                    <select id="enableActiveDetection" class="form-control">
+                        <option value="true">是</option>
+                        <option value="false">否</option>
+                    </select>
+                    <small style="color: var(--text-secondary);">检测代理是否被使用</small>
+                </div>
+                <div class="form-group">
+                    <label for="activeCheckMethod">检测方法</label>
+                    <select id="activeCheckMethod" class="form-control">
+                        <option value="none">禁用</option>
+                        <option value="api">API 连接数</option>
+                        <option value="traffic">流量统计</option>
+                    </select>
+                    <small style="color: var(--text-secondary);">需要 Clash 支持</small>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="btn btn-success" onclick="updateSmartConfig()">🤖 保存智能配置</button>
             </div>
         </section>
 

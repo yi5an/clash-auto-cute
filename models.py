@@ -21,6 +21,12 @@ class Config:
     test_timeout: int = 5000  # 延迟测试超时(毫秒)
     test_url: str = 'http://www.gstatic.com/generate_204'  # 测试URL
 
+    # 智能切换配置
+    silent_period_minutes: int = 3  # 切换后静默期时长(分钟)，默认3分钟
+    min_delay_for_switch: int = 100  # 切换前最小延迟才允许切换(ms)，避免抖动
+    enable_active_detection: bool = True  # 是否启用活跃连接检测
+    active_check_method: str = 'api'  # 活跃检测方法: 'api'(流量), 'traffic'(统计), 'none'(禁用)
+
     def to_dict(self) -> Dict:
         """转换为字典"""
         return {
@@ -31,7 +37,11 @@ class Config:
             'check_interval': self.check_interval,
             'locked_region': self.locked_region,
             'test_timeout': self.test_timeout,
-            'test_url': self.test_url
+            'test_url': self.test_url,
+            'silent_period_minutes': self.silent_period_minutes,
+            'min_delay_for_switch': self.min_delay_for_switch,
+            'enable_active_detection': self.enable_active_detection,
+            'active_check_method': self.active_check_method
         }
 
     @classmethod
@@ -68,6 +78,13 @@ class RuntimeState:
     delay_history: List[DelayRecord] = field(default_factory=list)
     is_running: bool = False
     lock: threading.Lock = field(default_factory=threading.Lock)
+
+    # 智能切换相关
+    in_silent_period: bool = False  # 是否在静默期内
+    silent_until: Optional[datetime] = None  # 静默期结束时间
+    last_switch_time: Optional[datetime] = None  # 上次切换时间
+    active_detection_enabled: bool = False  # 是否启用活跃连接检测
+    has_active_connections: bool = False  # 检测到活跃连接
 
     def to_dict(self) -> Dict:
         """转换为字典"""

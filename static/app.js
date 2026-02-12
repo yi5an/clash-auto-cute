@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initWebSocket();
     loadState();
     loadConfig();
+    loadSmartConfig();
     loadNodes();
     loadBlacklist();
     loadRegions();
@@ -88,6 +89,31 @@ function updateStateDisplay(state) {
 
     // 更新延迟历史
     updateHistoryList(state.delay_history);
+
+    // 更新静默期状态
+    const silentPeriodEl = document.getElementById('silentPeriod');
+    if (state.in_silent_period && state.silent_until) {
+        const now = new Date();
+        const remaining = Math.max(0, Math.ceil((state.silent_until - now) / 1000));
+        silentPeriodEl.textContent = `${remaining} 分钟`;
+        silentPeriodEl.className = 'status-value delay-warning';
+    } else {
+        silentPeriodEl.textContent = '未启用';
+        silentPeriodEl.className = 'status-value';
+    }
+
+    // 更新活跃连接状态
+    const activeConnectionsEl = document.getElementById('activeConnections');
+    if (state.has_active_connections) {
+        activeConnectionsEl.textContent = '检测到活跃';
+        activeConnectionsEl.className = 'status-value delay-warning';
+    } else if (state.in_silent_period) {
+        activeConnectionsEl.textContent = '暂停检测';
+        activeConnectionsEl.className = 'status-value';
+    } else {
+        activeConnectionsEl.textContent = '未启用';
+        activeConnectionsEl.className = 'status-value';
+    }
 }
 
 // 获取延迟状态类
@@ -139,7 +165,23 @@ async function loadConfig() {
     }
 }
 
-// 更新配置
+// 加载智能配置
+async function loadSmartConfig() {
+    try {
+        const response = await fetch('/api/config/smart');
+        const config = await response.json();
+
+        document.getElementById('silentPeriodMinutes').value = config.silent_period_minutes;
+        document.getElementById('minDelayForSwitch').value = config.min_delay_for_switch;
+        document.getElementById('enableActiveDetection').value = config.enable_active_detection.toString();
+        document.getElementById('activeCheckMethod').value = config.active_check_method;
+    } catch (error) {
+        console.error('加载智能配置失败:', error);
+        showNotification('加载智能配置失败', 'error');
+    }
+}
+
+// 更新基础配置
 async function updateConfig() {
     const config = {
         delay_threshold: parseInt(document.getElementById('delayThreshold').value),
@@ -168,6 +210,37 @@ async function updateConfig() {
     } catch (error) {
         console.error('更新配置失败:', error);
         showNotification('更新配置失败', 'error');
+    }
+}
+
+// 更新智能配置
+async function updateSmartConfig() {
+    const config = {
+        silent_period_minutes: parseInt(document.getElementById('silentPeriodMinutes').value),
+        min_delay_for_switch: parseInt(document.getElementById('minDelayForSwitch').value),
+        enable_active_detection: document.getElementById('enableActiveDetection').value === 'true',
+        active_check_method: document.getElementById('activeCheckMethod').value
+    };
+
+    try {
+        const response = await fetch('/api/config/smart', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(config)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showNotification('智能配置已保存', 'success');
+        } else {
+            showNotification('保存失败: ' + result.error, 'error');
+        }
+    } catch (error) {
+        console.error('更新智能配置失败:', error);
+        showNotification('更新智能配置失败', 'error');
     }
 }
 

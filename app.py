@@ -144,15 +144,62 @@ def update_config_api():
         else:
             logger.warning("配置保存失败，但已应用")
 
-        # 如果延迟检测器正在运行，重启它以应用新配置
-        if delay_checker and delay_checker.is_running():
-            delay_checker.stop()
-            delay_checker.start()
-
         return jsonify({'success': True, 'config': config.to_dict()})
     except Exception as e:
         logger.error(f"更新配置失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/config/smart', methods=['GET', 'POST'])
+def smart_config():
+    """获取或更新智能切换配置"""
+    global config
+
+    if request.method == 'GET':
+        return jsonify({
+            'silent_period_minutes': config.silent_period_minutes,
+            'min_delay_for_switch': config.min_delay_for_switch,
+            'enable_active_detection': config.enable_active_detection,
+            'active_check_method': config.active_check_method
+        })
+
+    # POST 请求：更新智能配置
+    data = request.json if request.method == 'POST' else {}
+
+    # 更新静默期
+    if 'silent_period_minutes' in data:
+        try:
+            value = int(data['silent_period_minutes'])
+            if 1 <= value <= 30:
+                config.silent_period_minutes = value
+                logger.info(f"更新静默期: {value} 分钟")
+        except ValueError:
+            return jsonify({'success': False, 'error': '静默期必须在 1-30 分钟之间'}), 500
+
+    # 更新最小切换延迟
+    if 'min_delay_for_switch' in data:
+        try:
+            value = int(data['min_delay_for_switch'])
+            if 50 <= value <= 1000:
+                config.min_delay_for_switch = value
+                logger.info(f"更新最小切换延迟: {value} ms")
+        except ValueError:
+            return jsonify({'success': False, 'error': '最小切换延迟必须在 50-1000 ms 之间'}), 500
+
+    # 更新活跃检测
+    if 'enable_active_detection' in data:
+        config.enable_active_detection = data['enable_active_detection'] == 'true'
+        logger.info(f"活跃连接检测: {'启用' if config.enable_active_detection else '禁用'}")
+
+    # 更新检测方法
+    if 'active_check_method' in data:
+        method = data['active_check_method']
+        if method in ['api', 'traffic', 'none']:
+            config.active_check_method = method
+            logger.info(f"活跃检测方法: {method}")
+        else:
+            return jsonify({'success': False, 'error': '无效的检测方法，必须是 api、traffic 或 none'}), 400
+
+    return jsonify({'success': True, 'config': config.to_dict()})
 
 
 # ========== API: 节点管理 ==========
@@ -295,15 +342,6 @@ def remove_blacklist():
             # 保存黑名单到文件
             storage.save_blacklist(state.blacklist)
             notify_state_update()
-            return jsonify({'success': True, 'message': f'已从黑名单移除: {node_name}'})
-        else:
-            return jsonify({'success': False, 'error': '移除失败'}), 500
-
-    except Exception as e:
-        logger.error(f"移除黑名单失败: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-        if success:
             return jsonify({'success': True, 'message': f'已从黑名单移除: {node_name}'})
         else:
             return jsonify({'success': False, 'error': '移除失败'}), 500

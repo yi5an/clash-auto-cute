@@ -167,6 +167,44 @@ class ClashAPI:
             logger.error(f"❌ 切换节点异常: {type(e).__name__}: {e}")
             return False
 
+    def get_active_connections(self) -> Dict:
+        """获取活跃连接信息（如果 Clash 支持）"""
+        try:
+            logger.debug("获取活跃连接信息")
+            response = self._request('GET', 'connections', max_retries=1)
+
+            if response.status_code == 200:
+                data = response.json()
+                connections = data.get('connections', {})
+                logger.debug(f"当前连接数: {len(connections)}")
+                return connections
+            else:
+                logger.debug("Clash API 不支持 /connections 端点")
+                return {}
+
+        except Exception as e:
+            logger.debug(f"获取连接信息失败: {e}")
+            return {}
+
+    def get_traffic_stats(self) -> Dict:
+        """获取流量统计（如果 Clash 支持）"""
+        try:
+            logger.debug("获取流量统计")
+            response = self._request('GET', 'traffic', max_retries=1)
+
+            if response.status_code == 200:
+                data = response.json()
+                stats = data.get('traffic', {})
+                logger.debug(f"流量统计: {stats}")
+                return stats
+            else:
+                logger.debug("Clash API 不支持 /traffic 端点")
+                return {}
+
+        except Exception as e:
+            logger.debug(f"获取流量统计失败: {e}")
+            return {}
+
     def get_delay(self, proxy_name: str, test_url: str = None, timeout: int = 5000) -> Optional[int]:
         """测试节点延迟"""
         try:

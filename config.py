@@ -21,7 +21,12 @@ def load_config() -> Config:
         check_interval=int(os.getenv('CHECK_INTERVAL', 30)),
         locked_region=os.getenv('LOCKED_REGION', ''),
         test_timeout=int(os.getenv('TEST_TIMEOUT', 5000)),
-        test_url=os.getenv('TEST_URL', 'http://www.gstatic.com/generate_204')
+        test_url=os.getenv('TEST_URL', 'http://www.gstatic.com/generate_204'),
+        # 智能切换配置
+        silent_period_minutes=int(os.getenv('SILENT_PERIOD', 3)),
+        min_delay_for_switch=int(os.getenv('MIN_DELAY_FOR_SWITCH', 100)),
+        enable_active_detection=os.getenv('ENABLE_ACTIVE_DETECTION', 'true').lower() == 'true',
+        active_check_method=os.getenv('ACTIVE_CHECK_METHOD', 'api')
     )
 
 
