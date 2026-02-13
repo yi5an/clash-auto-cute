@@ -32,7 +32,12 @@ class StorageManager:
                 'check_interval': config.check_interval,
                 'locked_region': config.locked_region,
                 'test_timeout': config.test_timeout,
-                'test_url': config.test_url
+                'test_url': config.test_url,
+                # 智能切换配置
+                'silent_period_minutes': config.silent_period_minutes,
+                'min_delay_for_switch': config.min_delay_for_switch,
+                'enable_active_detection': config.enable_active_detection,
+                'active_check_method': config.active_check_method
             }
 
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:

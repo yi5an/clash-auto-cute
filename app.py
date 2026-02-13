@@ -84,6 +84,9 @@ def initialize():
         # 添加状态变化回调
         delay_checker.add_callback(notify_state_update)
 
+        # 初始化活跃连接检测状态
+        state.active_detection_enabled = config.enable_active_detection
+
         # 获取初始状态
         current_node = clash_api.get_current_proxy(config.proxy_group)
         if current_node:
@@ -188,6 +191,9 @@ def smart_config():
     # 更新活跃检测
     if 'enable_active_detection' in data:
         config.enable_active_detection = data['enable_active_detection'] == 'true'
+        # 同步更新到运行时状态
+        if runtime_state:
+            runtime_state.active_detection_enabled = config.enable_active_detection
         logger.info(f"活跃连接检测: {'启用' if config.enable_active_detection else '禁用'}")
 
     # 更新检测方法
@@ -198,6 +204,9 @@ def smart_config():
             logger.info(f"活跃检测方法: {method}")
         else:
             return jsonify({'success': False, 'error': '无效的检测方法，必须是 api、traffic 或 none'}), 400
+
+    # 保存配置到文件
+    storage.save_config(config)
 
     return jsonify({'success': True, 'config': config.to_dict()})
 

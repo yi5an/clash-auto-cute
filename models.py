@@ -97,7 +97,13 @@ class RuntimeState:
                 'blacklist': list(self.blacklist),
                 'available_nodes': self.available_nodes.copy(),
                 'delay_history': [record.to_dict() for record in self.delay_history[-20:]],  # 只保留最近20条
-                'is_running': self.is_running
+                'is_running': self.is_running,
+                # 智能切换相关
+                'in_silent_period': self.in_silent_period,
+                'silent_until': self.silent_until.isoformat() if self.silent_until else None,
+                'last_switch_time': self.last_switch_time.isoformat() if self.last_switch_time else None,
+                'active_detection_enabled': self.active_detection_enabled,
+                'has_active_connections': self.has_active_connections
             }
 
     def add_blacklist(self, node_name: str):

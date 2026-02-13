@@ -106,22 +106,24 @@ class DelayChecker:
 
     def _check_active_via_traffic(self) -> bool:
         """通过流量统计判断是否有活跃使用"""
-        # 检查延迟历史中最近的测试记录
-        # 如果最近30秒内有成功的延迟测试，说明可能有活跃使用
+        # 检查最近的延迟测试频率
+        # 如果在短时间内（比如10秒）有多次延迟测试，
+        # 可能是自动检测触发的，而不是用户活动
         if not self.state.delay_history:
             return False
 
         now = datetime.now()
+        # 检查最近5秒内的延迟测试记录
         recent_records = [
             r for r in self.state.delay_history
-            if (now - r.timestamp).total_seconds() < 30
+            if (now - r.timestamp).total_seconds() < 5
         ]
 
-        # 如果有最近的成功测试记录，认为可能有活跃使用
+        # 如果有最近的测试记录，可能是用户活动
         has_recent_activity = len(recent_records) > 0
 
         if has_recent_activity:
-            logger.debug(f"最近30秒内有 {len(recent_records)} 次延迟测试，可能有活跃使用")
+            logger.info(f"通过流量统计检测到活跃连接 (最近5秒内{len(recent_records)}条记录)")
         else:
             logger.debug("最近30秒内无延迟测试记录")
 
