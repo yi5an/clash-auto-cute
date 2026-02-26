@@ -73,29 +73,39 @@ def initialize():
         # 检查 Clash API 是否可用
         if not clash_api.is_available():
             logger.error("无法连接到 Clash API，请确保 Clash 正在运行")
-            return False
+            logger.warning("服务将以只读模式启动，无法进行节点切换")
 
-        # 创建节点管理器
-        node_manager = NodeManager(clash_api, config, state)
-
-        # 创建延迟检测器
-        delay_checker = DelayChecker(clash_api, node_manager, config, state)
-
-        # 添加状态变化回调
-        delay_checker.add_callback(notify_state_update)
+        # 创建节点管理器和延迟检测器（仅当Clash可用时）
+        if clash_api.is_available():
+            # 创建节点管理器
+            node_manager = NodeManager(clash_api, config, state)
+            # 创建延迟检测器
+            delay_checker = DelayChecker(clash_api, node_manager, config, state)
+            # 添加状态变化回调
+            delay_checker.add_callback(notify_state_update)
+        else:
+            node_manager = None
+            delay_checker = None
 
         # 初始化活跃连接检测状态
         state.active_detection_enabled = config.enable_active_detection
 
-        # 获取初始状态
-        current_node = clash_api.get_current_proxy(config.proxy_group)
-        if current_node:
-            state.current_node = current_node
+        # 获取初始状态（仅当Clash可用时）
+        if clash_api.is_available():
+            current_node = clash_api.get_current_proxy(config.proxy_group)
+            if current_node:
+                state.current_node = current_node
 
-        available_nodes = node_manager.get_available_nodes()
-        state.available_nodes = available_nodes
+            if node_manager:
+                available_nodes = node_manager.get_available_nodes()
+                state.available_nodes = available_nodes
 
-        logger.info("服务初始化成功")
+            logger.info("服务初始化成功")
+        else:
+            logger.warning("服务以只读模式启动，无法进行节点切换")
+            state.current_node = "未知"
+            state.available_nodes = []
+
         return True
 
     except Exception as e:
@@ -192,8 +202,8 @@ def smart_config():
     if 'enable_active_detection' in data:
         config.enable_active_detection = data['enable_active_detection'] == 'true'
         # 同步更新到运行时状态
-        if runtime_state:
-            runtime_state.active_detection_enabled = config.enable_active_detection
+        if state:
+            state.active_detection_enabled = config.enable_active_detection
         logger.info(f"活跃连接检测: {'启用' if config.enable_active_detection else '禁用'}")
 
     # 更新检测方法
@@ -229,6 +239,9 @@ def get_nodes():
         # 如果提供了 region 参数，临时修改配置
         if region:
             config.locked_region = region
+
+        if not node_manager:
+            return jsonify({'success': False, 'error': 'Clash API 不可用，无法获取节点'}), 500
 
         all_nodes = node_manager.get_available_nodes()
         filtered_nodes = node_manager.filter_nodes()
@@ -320,6 +333,9 @@ def add_blacklist():
         if not node_name:
             return jsonify({'success': False, 'error': '节点名称不能为空'}), 400
 
+        if not node_manager:
+            return jsonify({'success': False, 'error': 'Clash API 不可用，无法操作节点'}), 500
+
         success = node_manager.add_blacklist(node_name)
 
         if success:
@@ -344,6 +360,9 @@ def remove_blacklist():
 
         if not node_name:
             return jsonify({'success': False, 'error': '节点名称不能为空'}), 400
+
+        if not node_manager:
+            return jsonify({'success': False, 'error': 'Clash API 不可用，无法操作节点'}), 500
 
         success = node_manager.remove_blacklist(node_name)
 
@@ -455,9 +474,12 @@ def main():
         logger.error("初始化失败，请检查 Clash 是否正在运行")
         return
 
-    # 自动启动延迟检测
-    delay_checker.start()
-    logger.info("延迟检测已自动启动")
+    # 自动启动延迟检测（仅当可用时）
+    if delay_checker:
+        delay_checker.start()
+        logger.info("延迟检测已自动启动")
+    else:
+        logger.warning("Clash API 不可用，跳过延迟检测启动")
 
     # 获取配置
     host = os.getenv('FLASK_HOST', '127.0.0.1')

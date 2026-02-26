@@ -28,6 +28,9 @@ class StorageManager:
         """保存配置到文件"""
         try:
             config_data = {
+                'clash_api_url': config.clash_api_url,
+                'clash_secret': config.clash_secret,
+                'proxy_group': config.proxy_group,
                 'delay_threshold': config.delay_threshold,
                 'check_interval': config.check_interval,
                 'locked_region': config.locked_region,
