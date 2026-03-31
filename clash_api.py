@@ -21,11 +21,26 @@ class ClashAPIError(Exception):
 class ClashAPI:
     """Clash API 客户端"""
 
+    SPECIAL_PROXY_TYPES = {
+        'Selector',
+        'URLTest',
+        'Fallback',
+        'LoadBalance',
+        'Relay',
+        'Direct',
+        'Reject',
+        'RejectDrop',
+        'Pass',
+        'Compatible',
+    }
+
     def __init__(self, config: Config):
         self.config = config
         self.base_url = config.clash_api_url.rstrip('/')
         self.secret = config.clash_secret
         self.headers = {}
+        self.session = requests.Session()
+        self.session.trust_env = False
         if self.secret:
             self.headers['Authorization'] = f'Bearer {self.secret}'
 
@@ -50,7 +65,7 @@ class ClashAPI:
         for attempt in range(max_retries):
             try:
                 attempt_start = time.time()
-                response = requests.request(
+                response = self.session.request(
                     method,
                     url,
                     headers=self.headers,
@@ -119,9 +134,11 @@ class ClashAPI:
         """获取代理组"""
         try:
             logger.debug("获取代理组")
-            response = self._request('GET', 'proxies')
-            data = response.json()
-            groups = data.get('groups', {})
+            proxies = self.get_proxies()
+            groups = {
+                name: info for name, info in proxies.items()
+                if info.get('type') in {'Selector', 'URLTest', 'Fallback', 'LoadBalance'}
+            }
             logger.info(f"成功获取代理组: 共 {len(groups)} 个")
             return groups
         except ClashAPIError as e:
@@ -134,8 +151,9 @@ class ClashAPI:
             logger.debug(f"获取当前节点: 组名={group_name}")
             proxies = self.get_proxies()
 
-            if group_name in proxies:
-                current = proxies[group_name].get('now', '')
+            resolved_group = self.resolve_proxy_group(group_name, proxies)
+            if resolved_group:
+                current = proxies[resolved_group].get('now', '')
                 logger.info(f"当前使用节点: {current} (组: {group_name})")
                 return current
             else:
@@ -149,10 +167,16 @@ class ClashAPI:
     def switch_proxy(self, group_name: str, proxy_name: str) -> bool:
         """切换到指定节点"""
         try:
-            logger.info(f"准备切换节点: 组={group_name}, 节点={proxy_name}")
+            proxies = self.get_proxies()
+            resolved_group = self.resolve_proxy_group(group_name, proxies)
+            if not resolved_group:
+                logger.error(f"无法切换节点，未找到可用代理组: {group_name}")
+                return False
+
+            logger.info(f"准备切换节点: 组={resolved_group}, 节点={proxy_name}")
 
             # URL 编码以支持中文代理组名
-            encoded_group_name = quote(group_name, safe='')
+            encoded_group_name = quote(resolved_group, safe='')
             url = f"proxies/{encoded_group_name}"
             logger.debug(f"  编码后的URL: {url}")
 
@@ -166,6 +190,53 @@ class ClashAPI:
         except Exception as e:
             logger.error(f"❌ 切换节点异常: {type(e).__name__}: {e}")
             return False
+
+    def resolve_proxy_group(self, preferred_group: str, proxies: Optional[Dict] = None) -> Optional[str]:
+        """解析实际可用的代理组名称"""
+        if proxies is None:
+            proxies = self.get_proxies()
+
+        if preferred_group and preferred_group in proxies:
+            return preferred_group
+
+        candidate_groups = [
+            name for name, info in proxies.items()
+            if info.get('type') in {'Selector', 'URLTest', 'Fallback', 'LoadBalance'}
+        ]
+
+        if not candidate_groups:
+            logger.error("未发现任何可用代理组")
+            return None
+
+        selector_groups = [
+            name for name in candidate_groups
+            if proxies[name].get('type') == 'Selector'
+        ]
+
+        if selector_groups:
+            for name in selector_groups:
+                members = proxies[name].get('all', [])
+                # 优先选择真正包含候选节点的主选择组，而不是纯自动测试组
+                if any(
+                    member in proxies and proxies[member].get('type') not in self.SPECIAL_PROXY_TYPES
+                    for member in members
+                ):
+                    logger.warning(
+                        f"代理组 '{preferred_group}' 不存在，自动回退到 '{name}'"
+                    )
+                    return name
+
+            fallback_group = selector_groups[0]
+            logger.warning(
+                f"代理组 '{preferred_group}' 不存在，自动回退到 '{fallback_group}'"
+            )
+            return fallback_group
+
+        fallback_group = candidate_groups[0]
+        logger.warning(
+            f"代理组 '{preferred_group}' 不存在，自动回退到 '{fallback_group}'"
+        )
+        return fallback_group
 
     def get_active_connections(self) -> Dict:
         """获取活跃连接信息（如果 Clash 支持）"""

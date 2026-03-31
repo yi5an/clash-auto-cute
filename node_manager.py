@@ -14,6 +14,19 @@ logger = logging.getLogger(__name__)
 class NodeManager:
     """节点管理器"""
 
+    SPECIAL_PROXY_TYPES = {
+        'Selector',
+        'URLTest',
+        'Fallback',
+        'LoadBalance',
+        'Relay',
+        'Direct',
+        'Reject',
+        'RejectDrop',
+        'Pass',
+        'Compatible',
+    }
+
     def __init__(self, clash_api: ClashAPI, config: Config, state: RuntimeState):
         self.clash_api = clash_api
         self.config = config
@@ -24,15 +37,19 @@ class NodeManager:
         try:
             all_proxies = self.clash_api.get_proxies()
 
-            # 过滤掉代理组和特殊节点
+            # 过滤掉代理组和内置特殊节点，兼容新内核返回的新协议类型
             node_list = []
             for name, info in all_proxies.items():
-                # 跳过代理组（如 PROXY, DIRECT 等）
-                if info.get('type') in ['Selector', 'URLTest', 'Fallback', 'LoadBalance']:
+                proxy_type = info.get('type', '')
+
+                if proxy_type in self.SPECIAL_PROXY_TYPES:
                     continue
-                # 只保留实际节点（SS, SSR, V2Ray, Trojan 等）
-                if info.get('type') in ['Shadowsocks', 'ShadowsocksR', 'V2Ray', 'Trojan', 'Snell']:
-                    node_list.append(name)
+
+                # 过滤 subscription info 这类非真实线路的说明项
+                if name.startswith('剩余流量') or name.startswith('距离下次重置') or name.startswith('套餐到期'):
+                    continue
+
+                node_list.append(name)
 
             return node_list
         except Exception as e:
